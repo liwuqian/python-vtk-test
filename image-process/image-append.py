@@ -1,5 +1,5 @@
 import vtkmodules.all as vtk
-
+# If the two image have intersection, do not use the class
 # Append image along z-axis
 
 def set_volume_properties_default(volumeProperty):
@@ -46,18 +46,22 @@ path_1 = "data/L1.mhd"
 path_2 = "data/L2.mhd"
 reader_1 = read_mhd(path_1)
 reader_2 = read_mhd(path_2)
+image_1 = vtk.vtkImageData()
 image_1 = reader_1.GetOutput()
+# image_1.SetExtent(0, 252, 0, 260, 0, 210)
 image_2 = reader_2.GetOutput()
 print("image 1 ------------------------")
-print(reader_1.GetOutput())
+print(image_1)
 print("image 2 ------------------------")
-print(reader_2.GetOutput())
+print(image_2)
 
 imageappend = vtk.vtkImageAppend()
 # the default is 0
-imageappend.SetAppendAxis(2)
-imageappend.AddInputData(reader_1.GetOutput())
-imageappend.AddInputData(reader_2.GetOutput())
+# imageappend.SetAppendAxis(2)
+imageappend.PreserveExtentsOn()
+imageappend.AddInputData(image_2)
+imageappend.AddInputData(image_1)
+
 imageappend.Update()
 image_all = imageappend.GetOutput()
 print("image all ------------------------")
@@ -93,7 +97,8 @@ renderer.SetOcclusionRatio(occlusionRatio)
 
 # Create volume mapper and volume
 volumeMapper = vtk.vtkGPUVolumeRayCastMapper()
-volumeMapper.SetInputConnection(imageappend.GetOutputPort())
+# volumeMapper.SetInputConnection(imageappend.GetOutputPort())
+volumeMapper.SetInputData(imageappend.GetOutput())
 volume = vtk.vtkVolume()
 volume.SetMapper(volumeMapper)
 
@@ -109,6 +114,11 @@ renderer.AddVolume(volume)
 polygon_actor = create_cylinder_actor()
 polygon_actor.SetPosition(50, 50, -50)
 renderer.AddActor(polygon_actor)
+
+# Add axis
+axis = vtk.vtkAxesActor()
+axis.SetTotalLength(30, 30, 30)
+renderer.AddActor(axis)
 
 # Set background color
 renderer.SetBackground(1, 1, 1)

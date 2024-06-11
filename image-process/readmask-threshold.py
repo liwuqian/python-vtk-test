@@ -1,7 +1,8 @@
 import vtkmodules.all as vtk
 
 # Define the path to your MHD file
-mhd_file_path = "data/decompressionvolume.mhd"
+# mhd_file_path = "data/decompressionvolume.mhd"
+mhd_file_path = "/opt/mnav/data/PHI/patientdata/jiagu2^^/CT-1/plandata/decompressionvolume_L1.mhd"
 
 # Create a reader for the MHD file
 reader = vtk.vtkMetaImageReader()
