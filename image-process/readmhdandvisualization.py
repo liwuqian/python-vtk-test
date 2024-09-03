@@ -20,7 +20,8 @@ def set_volume_properties_default(volumeProperty):
     # volumeProperty.SetScalarOpacityUnitDistance(0, 4.5)  # Adjust as needed
 
 # Create a reader for the MHD file
-filename = "/opt/mnav/data/PHI/patientdata/jiagu2^^/CT-1/registerplandata/whole.mhd"
+filename = "/opt/mnav/data/PHI/patientdata/jiagu2^^/CT-1/registerplandata/Whole.mhd"
+# filename = "data/registerplandata/whole.mhd"
 reader = vtk.vtkMetaImageReader()
 reader.SetFileName(filename)
 reader.Update()
@@ -51,6 +52,20 @@ renderer.AddActor(axes)
 # Create a render window
 renderWindow = vtk.vtkRenderWindow()
 renderWindow.AddRenderer(renderer)
+
+# Set window size and to center of the screen
+renderWindow.SetSize(600, 600)
+renderWindow.SetPosition(500, 500)
+
+# Set camera to look the volume from oblique angle
+renderer.ResetCamera()
+camera = renderer.GetActiveCamera()
+# camera.SetPosition(-500, 500, 500)
+# camera.SetFocalPoint(0, 0, 0)
+# camera.SetViewUp(0, 0, 1)
+camera.Azimuth(95)
+camera.Elevation(-25)
+
 
 # Create a render window interactor
 renderWindowInteractor = vtk.vtkRenderWindowInteractor()
