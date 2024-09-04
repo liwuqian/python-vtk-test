@@ -1,3 +1,8 @@
+# segment a single label from a mask and display it with the original image
+# if overlaying the mask on the original image, we must use lookup table to map the mask pixel values to colors
+# the lookup table must be set up transparently for the background
+# otherwise, the mask will be displayed with a black background and occlude the original image
+
 import vtkmodules.all as vtk
 
 # Define a list of distinct colors (RGB values)
@@ -34,6 +39,8 @@ distinct_colors = [
     (0.0, 0.5, 0.5),  # Teal
     (1.0, 0.5, 0.0),  # Bright Orange
     (0.5, 0.0, 1.0),  # Indigo
+    (0.75, 0.75, 0.75),  # Light Gray
+    (0.25, 0.25, 0.25),  # Dark Gray
 ]
 
 class ResliceCallback:
@@ -46,10 +53,8 @@ class ResliceCallback:
     def execute(self, obj, event):
         key = obj.GetKeyCode()
         if key == "w":  # Scroll forward
-            # self.slice = (self.slice + 1) % self.max_slices
             self.slice = 1
         elif key == "s":  # Scroll backward
-            # self.slice = (self.slice - 1) % self.max_slices
             self.slice = -1
         # print("Slice:", self.slice)
         self.update_slice()
@@ -98,27 +103,24 @@ reslice_mask.SetResliceAxesOrigin(reader_mask.GetOutput().GetCenter())
 reslice_mask.SetInterpolationModeToNearestNeighbor()  # Nearest neighbor for mask data
 reslice_mask.Update()
 
-# print reslice mask pixel values
-# mask_image = reslice_mask.GetOutput()
-# dimensions = mask_image.GetDimensions()
-# for i in range(dimensions[0]):
-#     for j in range(dimensions[1]):
-#         pixel = mask_image.GetScalarComponentAsDouble(i, j, 0, 0)
-#         print(f"Pixel ({i}, {j}): {pixel}")
-#         # if pixel > 0:
-#         #     print(f"Pixel ({i}, {j}): {pixel}")
-
-
 # Get the image dimensions (number of slices)
 dimensions = reader_image.GetOutput().GetDimensions()
 max_slices = dimensions[2]
+
+# Extract pixel values from the original image
+image_data = reader_image.GetOutput()
+scalar_range = image_data.GetScalarRange()
+
+# Compute the minimum pixel value from the original image
+min_pixel_value = scalar_range[0]
+max_pixel_value = scalar_range[1]
 
 # Set up the lookup table for different masks
 lut = vtk.vtkLookupTable()
 lut.SetNumberOfTableValues(33)  # 0 to 32 (33 values)
 lut.SetRange(0, 32)
 lut.Build()
-# Very important to set the background color to transparent
+
 lut.SetTableValue(0, 0, 0, 0, 0)  # Background color (transparent)
 
 # Set the colors in the lookup table
@@ -135,36 +137,90 @@ color_map.PassAlphaToOutputOn()
 color_map.SetOutputFormatToRGBA()
 color_map.Update()
 
-# Set up the image actor for the original image
-image_actor = vtk.vtkImageActor()
-image_actor.GetMapper().SetInputConnection(reslice_image.GetOutputPort())
+# Create a renderer, render window, and interactor
+renderer_0 = vtk.vtkRenderer()
+renderer_0.SetLayer(0)
+renderer_1 = vtk.vtkRenderer()
+renderer_1.SetLayer(1)
+renderer_1.SetBackgroundAlpha(0.1)
+renderer_1.SetBackground(0.1, 0.1, 0.1)
+# Enable blending on renderer_1 (the mask renderer)
+renderer_1.SetUseDepthPeeling(True)
+renderer_1.SetMaximumNumberOfPeels(100)
+renderer_1.SetOcclusionRatio(0.1)
 
-# Set up the image actor for the mask image
-mask_actor = vtk.vtkImageActor()
-mask_actor.GetMapper().SetInputConnection(color_map.GetOutputPort())
-mask_actor.SetOpacity(0.7)
-
-# Set up the renderer, render window, and interactor
-renderer = vtk.vtkRenderer()
 render_window = vtk.vtkRenderWindow()
+render_window.SetAlphaBitPlanes(1)
 render_window.SetSize(600, 600)
 render_window.SetPosition(600, 500)
-render_window.AddRenderer(renderer)
+render_window.AddRenderer(renderer_0)
+render_window.AddRenderer(renderer_1)
+render_window.SetNumberOfLayers(2)
 interactor = vtk.vtkRenderWindowInteractor()
 interactor.SetRenderWindow(render_window)
 
-# Add the image actors to the renderer
-renderer.AddActor(image_actor)
-renderer.AddActor(mask_actor)
-renderer.SetBackground(0.1, 0.1, 0.1)
+# Add the original image actor
+image_actor = vtk.vtkImageActor()
+image_actor.GetMapper().SetInputConnection(reslice_image.GetOutputPort())
+renderer_0.AddActor(image_actor)
+
+# Segment and add each label as a separate actor
+for label in range(1, 33):
+    # if label != 19:
+    #     continue
+    threshold = vtk.vtkImageThreshold()
+    threshold.SetInputConnection(reslice_mask.GetOutputPort())
+    threshold.ThresholdBetween(label, label)
+    threshold.SetInValue(1)
+    threshold.SetOutValue(min_pixel_value)
+    threshold.Update()
+
+    # Check if the mask exists
+    mask_exists = threshold.GetOutput().GetScalarRange()[1] > 0
+    if not mask_exists:
+        continue
+    print(f"Label {label} exists")
+    image_mask = vtk.vtkImageMask()
+    # set mask default value as min_pixel_value
+    image_mask.SetMaskedOutputValue(min_pixel_value)
+    image_mask.SetInputConnection(0, reslice_image.GetOutputPort())
+    image_mask.SetInputConnection(1, threshold.GetOutputPort())
+    # image_mask.SetMaskedOutputValue(max_pixel_value)
+    # set background to fully transparent
+    # image_mask.SetMaskedOutputValue(0, 0, 0)
+    image_mask.Update()
+    # print mask pixel values
+    # mask_image = image_mask.GetOutput()
+    # dims = mask_image.GetDimensions()
+    # for z in range(dims[2]):
+    #     print("Slice", z)
+    #     for y in range(dims[1]):
+    #         for x in range(dims[0]):
+    #             val = mask_image.GetScalarComponentAsFloat(x, y, z, 0)
+    #             print(val, end=" ")
+    #         print()  # Newline for new row
+    #     print()  # Newline for new slice
+    vtk_mask_mapper = vtk.vtkImageMapToColors()
+    vtk_mask_mapper.SetInputConnection(image_mask.GetOutputPort())
+    vtk_mask_mapper.SetLookupTable(lut)
+    vtk_mask_mapper.PassAlphaToOutputOn()
+    vtk_mask_mapper.SetOutputFormatToRGBA()
+    vtk_mask_mapper.Update()
+
+    segmented_image_actor = vtk.vtkImageActor()
+    segmented_image_actor.GetMapper().SetInputConnection(vtk_mask_mapper.GetOutputPort())
+    # segmented_image_actor.GetProperty().SetOpacity(0.6)
+    renderer_1.AddActor(segmented_image_actor)
+
+
+# Set up the renderer background color
+# renderer.SetBackground(0.1, 0.1, 0.1)
 
 # Initialize the reslice callback for mouse scroll events
 reslice_callback_image = ResliceCallback(reslice_image, image_actor, max_slices)
-reslice_callback_mask = ResliceCallback(reslice_mask, mask_actor, max_slices)
 
 # Attach the callback to the interactor
 interactor.AddObserver("KeyPressEvent", reslice_callback_image.execute)
-interactor.AddObserver("KeyPressEvent", reslice_callback_mask.execute)
 
 # Initialize and start the rendering loop
 render_window.Render()
