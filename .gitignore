@@ -1,4 +1,5 @@
 .venv/
 output
+git-filter-repo.py
 # data/liver_57.nii.gz
 
