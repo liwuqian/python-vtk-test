@@ -20,8 +20,8 @@ def set_volume_properties_default(volumeProperty):
     # volumeProperty.SetScalarOpacityUnitDistance(0, 4.5)  # Adjust as needed
 
 # Create a reader for the MHD file
-# filename = "/opt/mnav/data/PHI/patientdata/jiagu2^^/CT-1/registerplandata/Whole.mhd"
-filename = "data/origin.mhd"
+filename = "/opt/mnav/data/PHI/patientdata/jiagu2^^/CT-1/registerplandata/Whole.mhd"
+# filename = "data/registerplandata/whole.mhd"
 reader = vtk.vtkMetaImageReader()
 reader.SetFileName(filename)
 reader.Update()
