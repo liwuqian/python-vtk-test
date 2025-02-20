@@ -130,7 +130,19 @@ class myStyleTrackballActor(vtkInteractorStyleTrackballActor):
             camera.OrthogonalizeViewUp()
             self.GetInteractor().GetRenderWindow().Render()
         if self.selectedActor != None:
+            position = [0, 0, 0]
+            if self.selectedActor.GetUserMatrix() != None:
+                matrix = self.selectedActor.GetUserMatrix()
+                print("Selected matrix position:", matrix.GetElement(0, 3), matrix.GetElement(1, 3), matrix.GetElement(2, 3))
+            else:   
+                # actor position is always 0, 0, 0 if used user matrix 
+                position = self.selectedActor.GetPosition()
+                print("Selected actor position:", position)
+            # use position to translate the actor
+            center = [position[0], position[1], position[2]]
+            # use center to translate the actor
             center = self.selectedActor.GetCenter()
+            # print("Selected actor   center:", center)
             # compute center in display coordinates
             center_display = [0, 0, 0]
             self.ComputeWorldToDisplay(self.GetDefaultRenderer(), center[0], center[1], center[2], center_display)
@@ -139,15 +151,14 @@ class myStyleTrackballActor(vtkInteractorStyleTrackballActor):
             x0, y0 = self.GetInteractor().GetLastEventPosition()
             old_pick_point_wrd = [0, 0, 0, 1]
             new_pick_point_wrd = [0, 0, 0, 1]
-            self.ComputeDisplayToWorld(self.GetDefaultRenderer(), x0, y0, center_display[2], old_pick_point_wrd)
-            self.ComputeDisplayToWorld(self.GetDefaultRenderer(), x, y, center_display[2], new_pick_point_wrd)
+            # z  = 0
+            z  = center_display[2]
+            self.ComputeDisplayToWorld(self.GetDefaultRenderer(), x0, y0, z, old_pick_point_wrd)
+            self.ComputeDisplayToWorld(self.GetDefaultRenderer(), x, y, z, new_pick_point_wrd)
             motion_vector = [0, 0, 0]
             for i in range(3):
                 motion_vector[i] = new_pick_point_wrd[i] - old_pick_point_wrd[i]
-            motion_mouse = [x - x0, y - y0, 0]
-            # print("motion vector:", motion_vector)
-            # print("motion  mouse:", motion_mouse)
-            # translate actor by the difference in mouse positions from the actor center
+            print("Motion vector:", motion_vector)
             # using user matrix
             transform = vtk.vtkTransform()
             transform.PostMultiply()

@@ -21,7 +21,9 @@ def set_volume_properties_default(volumeProperty):
 
 # Create a reader for the MHD file
 filename = "/opt/mnav/data/PHI/patientdata/jiagu2^^/CT-1/registerplandata/Whole.mhd"
+filename = "/opt/mnav/data/PHI/patientdata/jiagu2^^/CT-1/filtered.mhd"
 # filename = "data/registerplandata/whole.mhd"
+filename = "data/origin.mhd"
 reader = vtk.vtkMetaImageReader()
 reader.SetFileName(filename)
 reader.Update()
