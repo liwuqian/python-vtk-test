@@ -1,5 +1,11 @@
 import vtkmodules.all as vtk
 
+'''
+This script demonstrates how to overlay a mask on top of an image using the vtkImageActor class.
+The mask image is displayed with a transparent background.
+The user can scroll through the slices of the original image using the 'w' and 's' keys.
+'''
+
 # Define a list of distinct colors (RGB values)
 distinct_colors = [
     (1.0, 0.0, 0.0),  # Red
@@ -82,6 +88,7 @@ resliceAxes.DeepCopy((0, 0, 1, 0,
                       0, 1, 0, 0,
                       0, 0, 0, 1))
 
+# reslice image and mask share the same reslice axes
 reslice_image = vtk.vtkImageReslice()
 reslice_image.SetInputConnection(reader_image.GetOutputPort())
 reslice_image.SetOutputDimensionality(2)
@@ -135,14 +142,14 @@ color_map.PassAlphaToOutputOn()
 color_map.SetOutputFormatToRGBA()
 color_map.Update()
 
-# Set up the image actor for the original image
-image_actor = vtk.vtkImageActor()
-image_actor.GetMapper().SetInputConnection(reslice_image.GetOutputPort())
-
 # Set up the image actor for the mask image
 mask_actor = vtk.vtkImageActor()
 mask_actor.GetMapper().SetInputConnection(color_map.GetOutputPort())
 mask_actor.SetOpacity(0.7)
+
+# Set up the image actor for the original image
+image_actor = vtk.vtkImageActor()
+image_actor.GetMapper().SetInputConnection(reslice_image.GetOutputPort())
 
 # Set up the renderer, render window, and interactor
 renderer = vtk.vtkRenderer()
@@ -160,11 +167,12 @@ renderer.SetBackground(0.1, 0.1, 0.1)
 
 # Initialize the reslice callback for mouse scroll events
 reslice_callback_image = ResliceCallback(reslice_image, image_actor, max_slices)
-reslice_callback_mask = ResliceCallback(reslice_mask, mask_actor, max_slices)
+# because they share the same reslice axes, we can use one callback for both
+# reslice_callback_mask = ResliceCallback(reslice_mask, mask_actor, max_slices)
 
 # Attach the callback to the interactor
 interactor.AddObserver("KeyPressEvent", reslice_callback_image.execute)
-interactor.AddObserver("KeyPressEvent", reslice_callback_mask.execute)
+# interactor.AddObserver("KeyPressEvent", reslice_callback_mask.execute)
 
 # Initialize and start the rendering loop
 render_window.Render()

@@ -68,6 +68,11 @@ class ResliceCallback:
         self.reslice.Update()
         self.image_actor.GetMapper().Update()
 
+def write_image_to_mhd(image, filename):
+    writer = vtk.vtkMetaImageWriter()
+    writer.SetInputData(image)
+    writer.SetFileName(filename)
+    writer.Write()
 
 # Read the original NIFTI file (.nii.gz)
 reader_image = vtk.vtkNIFTIImageReader()
@@ -87,12 +92,13 @@ resliceAxes.DeepCopy((0, 0, 1, 0,
                       0, 1, 0, 0,
                       0, 0, 0, 1))
 
+# reslice image and mask share the same reslice axes
 reslice_image = vtk.vtkImageReslice()
 reslice_image.SetInputConnection(reader_image.GetOutputPort())
 reslice_image.SetOutputDimensionality(2)
 reslice_image.SetResliceAxes(resliceAxes)
 reslice_image.SetResliceAxesOrigin(reader_image.GetOutput().GetCenter())
-reslice_image.SetInterpolationModeToCubic()  # Cubic for image data
+reslice_image.SetInterpolationModeToLinear()
 reslice_image.Update()
 
 reslice_mask = vtk.vtkImageReslice()
@@ -166,6 +172,7 @@ renderer_0.AddActor(image_actor)
 
 # Segment and add each label as a separate actor
 for label in range(1, 33):
+    # Display only a single label
     # if label != 19:
     #     continue
     threshold = vtk.vtkImageThreshold()
@@ -180,6 +187,7 @@ for label in range(1, 33):
     if not mask_exists:
         continue
     print(f"Label {label} exists")
+    print("threshold scaler range: ", threshold.GetOutput().GetScalarRange())
     image_mask = vtk.vtkImageMask()
     # set mask default value as min_pixel_value
     image_mask.SetMaskedOutputValue(min_pixel_value)
@@ -189,7 +197,9 @@ for label in range(1, 33):
     # set background to fully transparent
     # image_mask.SetMaskedOutputValue(0, 0, 0)
     image_mask.Update()
+    print("image_mask scaler range: ", image_mask.GetOutput().GetScalarRange())
     # print mask pixel values
+    # the mask pixel values are real pixel values from the original image
     # mask_image = image_mask.GetOutput()
     # dims = mask_image.GetDimensions()
     # for z in range(dims[2]):
@@ -197,11 +207,19 @@ for label in range(1, 33):
     #     for y in range(dims[1]):
     #         for x in range(dims[0]):
     #             val = mask_image.GetScalarComponentAsFloat(x, y, z, 0)
+    #             if val == min_pixel_value:
+    #                 continue
     #             print(val, end=" ")
-    #         print()  # Newline for new row
-    #     print()  # Newline for new slice
+    #     #     print()  # Newline for new row
+    #     # print()  # Newline for new slice
+
+    # this mapper will map the mask pixel(real pixel) values to colors
+    # vtk_mask_mapper = vtk.vtkImageMapToWindowLevelColors()
+    # vtk_mask_mapper.SetInputConnection(image_mask.GetOutputPort())
+
     vtk_mask_mapper = vtk.vtkImageMapToColors()
     vtk_mask_mapper.SetInputConnection(image_mask.GetOutputPort())
+    # the pixel values bigger than the max of the lookup table will be set to the max of the lookup table
     vtk_mask_mapper.SetLookupTable(lut)
     vtk_mask_mapper.PassAlphaToOutputOn()
     vtk_mask_mapper.SetOutputFormatToRGBA()

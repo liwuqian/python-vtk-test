@@ -1,5 +1,11 @@
 import vtkmodules.all as vtk
 
+'''
+This script demonstrates how to adjust the window width and level of a volume rendering.
+The user can adjust the window width and level using the 'w', 's', 'a', and 'd' keys.
+The user can adjust the volume opacity using the 'o' and 'p' keys.
+'''
+
 def create_cylinder_actor():
     source = vtk.vtkCylinderSource()
     source.SetHeight(60)
@@ -62,7 +68,9 @@ def read_mhd(directory):
 
 
 # Read the data
-reader = read_mhd("data/origin.mhd")
+filename = "data/origin.mhd"
+filename = "output/liver_57_label_15.mhd"
+reader = read_mhd(filename)
 
 scalar_range = reader.GetOutput().GetScalarRange()
 print("Scalar range:", scalar_range)
@@ -108,6 +116,18 @@ renderer.SetBackground(0, 0, 0)
 cylinder_actor = create_cylinder_actor()
 cylinder_actor.SetPosition(50, 50, -50)
 renderer.AddActor(cylinder_actor)
+
+# add axes to the renderer
+axes = vtk.vtkAxesActor()
+axes.SetTotalLength(10, 10, 10)
+# set the text scale mode to none
+axes.GetXAxisCaptionActor2D().GetTextActor().SetTextScaleModeToNone()
+axes.GetYAxisCaptionActor2D().GetTextActor().SetTextScaleModeToNone()
+axes.GetZAxisCaptionActor2D().GetTextActor().SetTextScaleModeToNone()
+axes.GetXAxisCaptionActor2D().GetTextActor().SetHeight(0.02)
+axes.GetYAxisCaptionActor2D().GetTextActor().SetHeight(0.02)
+axes.GetZAxisCaptionActor2D().GetTextActor().SetHeight(0.02)
+renderer.AddActor(axes)
 
 renderer.SetUseDepthPeeling(1)
 renderer.SetUseDepthPeelingForVolumes(1)

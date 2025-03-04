@@ -1,5 +1,10 @@
 import vtkmodules.all as vtk
 
+'''
+This script demonstrates how to reslice a NIFTI image with multiple masks in different orientations using the vtkImageReslice class.
+The user can scroll through the slices of the resliced image using the 'w' and 's' keys.
+'''
+
 # Define a list of distinct colors (RGB values)
 distinct_colors = [
     (1.0, 0.0, 0.0),  # Red

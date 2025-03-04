@@ -1,5 +1,10 @@
 import vtkmodules.all as vtk
 
+'''
+This script demonstrates how to reslice a NIFTI image in different orientations using the vtkImageReslice class.
+The user can scroll through the slices of the resliced image using the 'w' and 's' keys.
+'''
+
 class ResliceCallback:
     def __init__(self, reslice, image_actor, max_slices):
         self.reslice = reslice
@@ -64,7 +69,7 @@ max_slices = dimensions[2]
 
 
 # Apply the lookup table to map scalar values to colors
-color_map = vtk.vtkImageMapToColors()
+color_map = vtk.vtkImageMapToWindowLevelColors()
 color_map.SetInputConnection(reslice.GetOutputPort())
 color_map.Update()
 

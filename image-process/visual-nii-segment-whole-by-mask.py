@@ -1,5 +1,13 @@
 import vtkmodules.all as vtk
 
+'''
+This script demonstrates how to overlay a mask image on top of segmented image by mask.
+The mask image is used to segment the original image.
+The mask image is displayed with a transparent background.
+The segmented image is same to mask image, beacuse it is segmented by mask image.
+The user can scroll through the slices of the original image using the 'w' and 's' keys.
+'''
+
 # Define a list of distinct colors (RGB values)
 distinct_colors = [
     (1.0, 0.0, 0.0),  # Red
@@ -34,8 +42,6 @@ distinct_colors = [
     (0.0, 0.5, 0.5),  # Teal
     (1.0, 0.5, 0.0),  # Bright Orange
     (0.5, 0.0, 1.0),  # Indigo
-    (0.75, 0.75, 0.75),  # Light Gray
-    (0.25, 0.25, 0.25),  # Dark Gray
 ]
 
 class ResliceCallback:
@@ -82,12 +88,13 @@ resliceAxes.DeepCopy((0, 0, 1, 0,
                       0, 1, 0, 0,
                       0, 0, 0, 1))
 
+# reslcie image and mask share the same reslice axes
 reslice_image = vtk.vtkImageReslice()
 reslice_image.SetInputConnection(reader_image.GetOutputPort())
 reslice_image.SetOutputDimensionality(2)
 reslice_image.SetResliceAxes(resliceAxes)
 reslice_image.SetResliceAxesOrigin(reader_image.GetOutput().GetCenter())
-reslice_image.SetInterpolationModeToCubic()  # Cubic for image data
+reslice_image.SetInterpolationModeToLinear()
 reslice_image.Update()
 
 reslice_mask = vtk.vtkImageReslice()
@@ -124,6 +131,11 @@ color_map.PassAlphaToOutputOn()
 color_map.SetOutputFormatToRGBA()
 color_map.Update()
 
+# Set up the image actor for the mask image
+mask_actor = vtk.vtkImageActor()
+mask_actor.GetMapper().SetInputConnection(color_map.GetOutputPort())
+mask_actor.SetOpacity(0.5)
+
 # Use the mask to segment the original image
 image_mask = vtk.vtkImageMask()
 image_mask.SetInputConnection(0, reslice_image.GetOutputPort())
@@ -147,11 +159,6 @@ segmented_image_actor = vtk.vtkImageActor()
 segmented_image_actor.GetMapper().SetInputConnection(image_mask.GetOutputPort())
 segmented_image_actor.GetProperty().SetOpacity(1.0)
 
-# Set up the image actor for the mask image
-mask_actor = vtk.vtkImageActor()
-mask_actor.GetMapper().SetInputConnection(color_map.GetOutputPort())
-mask_actor.SetOpacity(0.3)
-
 # Set up the renderer, render window, and interactor
 renderer = vtk.vtkRenderer()
 render_window = vtk.vtkRenderWindow()
@@ -168,11 +175,12 @@ renderer.SetBackground(0.1, 0.1, 0.1)
 
 # Initialize the reslice callback for mouse scroll events
 reslice_callback_image = ResliceCallback(reslice_image, segmented_image_actor, max_slices)
-reslice_callback_mask = ResliceCallback(reslice_mask, mask_actor, max_slices)
+# they share the same reslice axes, so we can use one callback for both
+# reslice_callback_mask = ResliceCallback(reslice_mask, mask_actor, max_slices)
 
 # Attach the callback to the interactor
 interactor.AddObserver("KeyPressEvent", reslice_callback_image.execute)
-interactor.AddObserver("KeyPressEvent", reslice_callback_mask.execute)
+# interactor.AddObserver("KeyPressEvent", reslice_callback_mask.execute)
 
 # Initialize and start the rendering loop
 render_window.Render()

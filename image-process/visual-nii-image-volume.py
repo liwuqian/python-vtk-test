@@ -1,8 +1,15 @@
 import vtkmodules.all as vtk
 
+'''
+This script demonstrates how to visualize a NIFTI image volume using the vtkSmartVolumeMapper class.
+'''
+
 # Read the NIFTI file (.nii.gz)
-reader = vtk.vtkNIFTIImageReader()
-reader.SetFileName("data/liver_57.nii.gz")
+# filename = "data/liver_57.nii.gz"
+# reader = vtk.vtkNIFTIImageReader()
+filename = "output/liver_57_label_19.mhd"
+reader = vtk.vtkMetaImageReader()
+reader.SetFileName(filename)
 reader.Update()
 
 # Set up the volume mapper
@@ -45,6 +52,17 @@ interactor.SetRenderWindow(render_window)
 # Add the volume to the renderer
 renderer.AddVolume(volume)
 renderer.SetBackground(0, 0, 0)  # Set the background color to black
+
+# add axes to the renderer
+axes = vtk.vtkAxesActor()
+axes.SetTotalLength(10, 10, 10)
+axes.GetXAxisCaptionActor2D().GetTextActor().SetTextScaleModeToNone()
+axes.GetYAxisCaptionActor2D().GetTextActor().SetTextScaleModeToNone()
+axes.GetZAxisCaptionActor2D().GetTextActor().SetTextScaleModeToNone()
+axes.GetXAxisCaptionActor2D().GetTextActor().SetHeight(0.02)
+axes.GetYAxisCaptionActor2D().GetTextActor().SetHeight(0.02)
+axes.GetZAxisCaptionActor2D().GetTextActor().SetHeight(0.02)
+renderer.AddActor(axes)
 
 # Initialize and start the rendering loop
 render_window.Render()

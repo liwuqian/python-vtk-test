@@ -1,5 +1,10 @@
 import vtkmodules.all as vtk
 
+'''
+This script demonstrates how to visualize a NIFTI image with multiple masks using the vtkDiscreteMarchingCubes class.
+The masks are used to segment the original image, and the segmented regions are visualized as isosurfaces.
+'''
+
 # Define a list of distinct colors (RGB values)
 distinct_colors = [
     (1.0, 0.0, 0.0),  # Red
@@ -40,7 +45,7 @@ distinct_colors = [
 
 # Read the NIFTI file (.nii.gz)
 reader = vtk.vtkNIFTIImageReader()
-reader.SetFileName("data/liver_57.nii.gz")
+# reader.SetFileName("data/liver_57.nii.gz")
 reader.SetFileName("data/liver_57_multilabel.nii.gz")
 reader.Update()
 
