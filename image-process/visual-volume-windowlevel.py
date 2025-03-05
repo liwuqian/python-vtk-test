@@ -66,14 +66,34 @@ def read_mhd(directory):
     reader.Update()
     return reader
 
+def read_nii(directory):
+    reader = vtk.vtkNIFTIImageReader()
+    reader.SetFileName(directory)
+    reader.Update()
+    return reader
+
 
 # Read the data
 filename = "data/origin.mhd"
-filename = "output/liver_57_label_15.mhd"
+filename = "output/liver_57_label_19.mhd"
+filename = "output/label_19.mhd"
+# filename = "label_19_cropped.mhd"
 reader = read_mhd(filename)
+# filename = "data/liver_57.nii.gz"
+# reader = read_nii(filename)
 
 scalar_range = reader.GetOutput().GetScalarRange()
+print("filename:", filename)
 print("Scalar range:", scalar_range)
+# print origin, extent, dimensions, bounds
+origin = reader.GetOutput().GetOrigin()
+extent = reader.GetOutput().GetExtent()
+dimensions = reader.GetOutput().GetDimensions()
+bounds = reader.GetOutput().GetBounds()
+print("Origin:", origin)
+print("Extent:", extent)
+print("Dimensions:", dimensions)
+print("Bounds:", bounds)
 
 # Create transfer functions
 color_func = vtk.vtkColorTransferFunction()

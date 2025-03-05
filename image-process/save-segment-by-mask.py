@@ -32,13 +32,15 @@ print(f"Segmenting labels from {min_label} to {max_label}...")
 for label in range(min_label, max_label + 1):
     if label == 0:
         continue  # Skip background
+    # if label != 19:
+    #     continue
 
     # Threshold to extract only the current label
     threshold = vtk.vtkImageThreshold()
     threshold.SetInputConnection(reader_mask.GetOutputPort())  # Use full 3D mask
     threshold.ThresholdBetween(label, label)  # Isolate this label
     threshold.SetInValue(1)  # Set label region to 1
-    threshold.SetOutValue(min_pixel_value) # set out value to minimal pixel value
+    threshold.SetOutValue(0)
     threshold.Update()
 
     # Check if the mask exists
