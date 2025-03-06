@@ -3,8 +3,8 @@ import os
 
 '''
 This script demonstrates how to extract and save a volume of interest (VOI) for each label in a mask.
-First, extract the VOI for original image and mask.
-Second, segment the each label using image voi and mask voi.
+First, segment the original image using a multi-label mask.
+Second, extract the VOI for each segmented label to reduce the image size.
 The VOI is saved as a separate MHD file for each label.
 '''
 
@@ -92,12 +92,6 @@ def process_image_and_mask(image_file, mask_file, output_dir):
         voi_extent = [min_x, max_x, min_y, max_y, min_z, max_z]
         print(f"Label {label}: VOI extent {voi_extent}")
 
-        # Extract VOI from image
-        extract_voi = vtk.vtkExtractVOI()
-        extract_voi.SetInputConnection(reader_image.GetOutputPort())
-        extract_voi.SetVOI(voi_extent)
-        extract_voi.Update()
-
         # Threshold mask for this label
         threshold = vtk.vtkImageThreshold()
         threshold.SetInputConnection(reader_mask.GetOutputPort())
@@ -106,24 +100,24 @@ def process_image_and_mask(image_file, mask_file, output_dir):
         threshold.SetOutValue(0)
         threshold.Update()
 
-        # Extract same VOI from thresholded mask
-        extract_mask = vtk.vtkExtractVOI()
-        extract_mask.SetInputConnection(threshold.GetOutputPort())
-        extract_mask.SetVOI(voi_extent)
-        extract_mask.Update()
-
         # Apply mask to extracted image
         image_mask = vtk.vtkImageMask()
-        image_mask.SetInputConnection(0, extract_voi.GetOutputPort())
-        image_mask.SetInputConnection(1, extract_mask.GetOutputPort())
+        image_mask.SetInputConnection(0, reader_image.GetOutputPort())
+        image_mask.SetInputConnection(1, threshold.GetOutputPort())
         image_mask.SetMaskedOutputValue(image_data.GetScalarRange()[0])
         image_mask.Update()
 
+        # Extract VOI from image
+        extract_voi = vtk.vtkExtractVOI()
+        extract_voi.SetInputConnection(image_mask.GetOutputPort())
+        extract_voi.SetVOI(voi_extent)
+        extract_voi.Update()
+
         # Save output
-        output_file = f"{output_dir}/label_{label}.mhd"
+        output_file = f"{output_dir}/label_{label}_voi.mhd"
         writer = vtk.vtkMetaImageWriter()
         writer.SetFileName(output_file)
-        writer.SetInputConnection(image_mask.GetOutputPort())
+        writer.SetInputConnection(extract_voi.GetOutputPort())
         writer.Write()
         print(f"Saved label {label} to {output_file}")
 
