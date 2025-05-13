@@ -1,24 +1,29 @@
 import vtkmodules.all as vtk
 
 # Create a sphere as the object to be clipped
-sphere_source = vtk.vtkSphereSource()
-sphere_source.SetRadius(5.0)
-sphere_source.SetThetaResolution(50)
-sphere_source.SetPhiResolution(50)
+# sphere_source = vtk.vtkSphereSource()
+# sphere_source.SetRadius(5.0)
+# sphere_source.SetThetaResolution(50)
+# sphere_source.SetPhiResolution(50)
+cylinder_source = vtk.vtkCylinderSource()
+cylinder_source.SetRadius(5.0)
+cylinder_source.SetHeight(20.0)
+cylinder_source.SetResolution(50)
+cylinder_source.Update()
 
 # Define the near clipping plane
 near_clip_plane = vtk.vtkPlane()
-near_clip_plane.SetOrigin(0.0, 0.0, 1.0)  # Set near clipping distance from the origin
-near_clip_plane.SetNormal(0.0, 0.0, 1.0)  # Normal points into the scene
+near_clip_plane.SetOrigin(-1, 0.0, 0)  # Set near clipping distance from the origin
+near_clip_plane.SetNormal(1, 0.0, 0)  # Normal points into the scene
 
 # Define the far clipping plane
 far_clip_plane = vtk.vtkPlane()
-far_clip_plane.SetOrigin(0.0, 0.0, 4.0)  # Set far clipping distance from the origin
-far_clip_plane.SetNormal(0.0, 0.0, -1.0)  # Normal points opposite to near plane
+far_clip_plane.SetOrigin(1, 0.0, 0)  # Set far clipping distance from the origin
+far_clip_plane.SetNormal(-1, 0.0, 0)  # Normal points opposite to near plane
 
 # Use vtkClipClosedSurface to apply both planes for closed surface clipping
 clipper = vtk.vtkClipClosedSurface()
-clipper.SetInputConnection(sphere_source.GetOutputPort())
+clipper.SetInputConnection(cylinder_source.GetOutputPort())
 clipper.SetClippingPlanes(vtk.vtkPlaneCollection())  # Create a collection of clipping planes
 clipper.GetClippingPlanes().AddItem(near_clip_plane)
 clipper.GetClippingPlanes().AddItem(far_clip_plane)

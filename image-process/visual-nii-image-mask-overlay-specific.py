@@ -62,9 +62,15 @@ reader_mask = vtk.vtkNIFTIImageReader()
 reader_mask.SetFileName("data/liver_57_multilabel.nii.gz")
 reader_mask.Update()
 
+# get mask pixel value range
+mask_data = reader_mask.GetOutput()
+mask_range = mask_data.GetScalarRange()
+min_mask_value, max_mask_value = int(mask_range[0]), int(mask_range[1])
+print(f"Mask value range: {min_mask_value} to {max_mask_value}")
+
 # Threshold specific mask value
-specific_min_value = 1
-specific_max_value = 33
+specific_min_value = 24
+specific_max_value = 24
 threshold = vtk.vtkImageThreshold()
 threshold.SetInputConnection(reader_mask.GetOutputPort())
 threshold.ThresholdBetween(specific_min_value, specific_max_value)
