@@ -1,4 +1,4 @@
-import vtk
+import vtkmodules.all as vtk
 
 # Create a cylinder (pencil body)
 cylinder = vtk.vtkCylinderSource()
@@ -7,12 +7,24 @@ cylinder.SetHeight(5.0)  # Length of the pencil body
 cylinder.SetResolution(50)
 cylinder.Update()
 
+# Create a mapper for the cylinder
+cylinderMapper = vtk.vtkPolyDataMapper()
+cylinderMapper.SetInputConnection(cylinder.GetOutputPort())
+cylinderActor = vtk.vtkActor()
+cylinderActor.SetMapper(cylinderMapper)
+
 # Create a cone (pencil tip)
 cone = vtk.vtkConeSource()
 cone.SetRadius(0.5)  # Same radius as the cylinder
 cone.SetHeight(1.5)  # Sharpened tip should be smaller
 cone.SetResolution(50)
 cone.Update()
+
+# Create a mapper for the cone
+coneMapper = vtk.vtkPolyDataMapper()
+coneMapper.SetInputConnection(cone.GetOutputPort())
+coneActor = vtk.vtkActor()
+coneActor.SetMapper(coneMapper)
 
 # Transform the cone to place its base on top of the cylinder
 transform = vtk.vtkTransform()
@@ -47,6 +59,8 @@ interactor = vtk.vtkRenderWindowInteractor()
 interactor.SetRenderWindow(renderWindow)
 
 # Add the actor to the renderer
+# renderer.AddActor(cylinderActor)
+# renderer.AddActor(coneActor)
 renderer.AddActor(actor)
 renderer.SetBackground(0.1, 0.1, 0.1)  # Dark background
 
