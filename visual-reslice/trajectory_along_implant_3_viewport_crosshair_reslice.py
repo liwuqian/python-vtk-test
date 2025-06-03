@@ -1,5 +1,5 @@
 import vtkmodules.all as vtk
-
+'''This script implements a multi-view reslice viewer for medical imaging data, real-time crosshair lines update'''
 
 def load_mhd_file(file_path):
     reader = vtk.vtkMetaImageReader()
@@ -67,6 +67,20 @@ def apply_reslice_transform_to_actor(actor, reslice_matrix, implant_matrix):
     actor.SetUserMatrix(final_matrix)
 
 
+def build_line_actor(p1, p2, color=(1, 1, 1), linewidth=2):
+    line = vtk.vtkLineSource()
+    line.SetPoint1(p1)
+    line.SetPoint2(p2)
+    line.Update()
+    mapper = vtk.vtkPolyDataMapper()
+    mapper.SetInputConnection(line.GetOutputPort())
+    actor = vtk.vtkActor()
+    actor.SetMapper(mapper)
+    actor.GetProperty().SetColor(color)
+    actor.GetProperty().SetLineWidth(linewidth)
+    return actor
+
+
 class View:
     def __init__(self, image_data, implant_transform, axis, viewport, render_window):
         self.image_data = image_data
@@ -74,6 +88,8 @@ class View:
         self.axis = axis
         self.viewport = viewport
         self.render_window = render_window
+
+        self.slice_offset = 0.0  # slice offset along implant axis
 
         self.reslice = vtk.vtkImageReslice()
         self.reslice.SetInputData(image_data)
@@ -96,93 +112,150 @@ class View:
 
         self.render_window.AddRenderer(self.renderer)
 
+        # crosshair lines, two per view representing the two implant axes perpendicular to this view axis
         self.crosshair_lines = [vtk.vtkActor(), vtk.vtkActor()]
-        for actor in self.crosshair_lines:
+        colors = [(1, 0, 0), (0, 1, 0), (0, 0, 1)]
+        for i, actor in enumerate(self.crosshair_lines):
             actor.GetProperty().SetLineWidth(2)
+            actor.GetProperty().SetColor(colors[(self.axis + 1 + i) % 3])
             self.renderer.AddActor(actor)
 
-        colors = [(1, 0, 0), (0, 1, 0), (0, 0, 1)]
-        self.crosshair_lines[0].GetProperty().SetColor(colors[(self.axis + 1) % 3])
-        self.crosshair_lines[1].GetProperty().SetColor(colors[(self.axis + 2) % 3])
-
-        # Initialize once
         self.update_reslice()
-
         self.renderer.ResetCamera()
 
-    def update_reslice(self, slice_offset=0.0, reference_offset=None, reference_transform=None):
-        def get_in_plane_vectors(implant_matrix, new_reslice_matrix, axis):
-            inverse = vtk.vtkMatrix4x4()
-            vtk.vtkMatrix4x4.Invert(new_reslice_matrix, inverse)
-            dicom_v1 = [implant_matrix.GetElement(0, (axis + 1) % 3),
-                        implant_matrix.GetElement(1, (axis + 1) % 3),
-                        implant_matrix.GetElement(2, (axis + 1) % 3)]
-            dicom_v2 = [implant_matrix.GetElement(0, (axis + 2) % 3),
-                        implant_matrix.GetElement(1, (axis + 2) % 3),
-                        implant_matrix.GetElement(2, (axis + 2) % 3)]
-            v1 = list(inverse.MultiplyDoublePoint(dicom_v1 + [0.0]))[:3]
-            v2 = list(inverse.MultiplyDoublePoint(dicom_v2 + [0.0]))[:3]
-            # normalize vectors
-            v1_length = vtk.vtkMath.Norm(v1)
-            v2_length = vtk.vtkMath.Norm(v2)
-            if v1_length > 0:
-                v1 = [x / v1_length for x in v1]
-            if v2_length > 0:
-                v2 = [x / v2_length for x in v2]
-            return v1, v2
+    def update_reslice(self):
+        # Build the reslice axes matrix with offset for slice scrolling
+        base_reslice_matrix = create_reslice_matrix_from_transform(self.implant_transform, self.axis)
 
-        def transform_point_to_reslice_space(point, reslice_matrix):
-            inverse = vtk.vtkMatrix4x4()
-            vtk.vtkMatrix4x4.Invert(reslice_matrix, inverse)
-            p = list(inverse.MultiplyDoublePoint(list(point) + [1.0]))[:3]
-            return p
+        # Modify the origin along the slice axis to apply the slice offset:
+        # The slice axis in the reslice matrix corresponds to the 3rd column (index 2)
+        origin = [base_reslice_matrix.GetElement(i, 3) for i in range(3)]
+        axis_vector = [base_reslice_matrix.GetElement(i, 2) for i in range(3)]
+        # Add offset along the normal direction of the reslice plane:
+        offset = [self.slice_offset * v for v in axis_vector]
+        new_origin = [origin[i] + offset[i] for i in range(3)]
 
-        def build_line_actor(p, direction, length=100):
-            line = vtk.vtkLineSource()
-            d = [length * x for x in direction]
-            line.SetPoint1(p[0] - d[0], p[1] - d[1], p[2] - d[2])
-            line.SetPoint2(p[0] + d[0], p[1] + d[1], p[2] + d[2])
-            line.Update()
+        for i in range(3):
+            base_reslice_matrix.SetElement(i, 3, new_origin[i])
 
-            mapper = vtk.vtkPolyDataMapper()
-            mapper.SetInputConnection(line.GetOutputPort())
-
-            actor = vtk.vtkActor()
-            actor.SetMapper(mapper)
-            return actor
-
-        new_reslice_matrix = create_reslice_matrix_from_transform(self.implant_transform, self.axis)
-
-        # Shift reslice origin along implant axis by slice_offset
-        origin = list(self.implant_transform.GetPosition())
-        axis_vector = [self.implant_transform.GetMatrix().GetElement(i, self.axis) for i in range(3)]
-        origin = [origin[i] + axis_vector[i] * slice_offset for i in range(3)]
-        new_reslice_matrix.SetElement(0, 3, origin[0])
-        new_reslice_matrix.SetElement(1, 3, origin[1])
-        new_reslice_matrix.SetElement(2, 3, origin[2])
-
-        self.reslice.SetResliceAxes(new_reslice_matrix)
+        self.reslice.SetResliceAxes(base_reslice_matrix)
         self.reslice.Update()
         self.color_map.Update()
 
+        # Update implant actor position & orientation relative to reslice plane
         apply_reslice_transform_to_actor(
             self.implant_actor,
-            new_reslice_matrix,
+            base_reslice_matrix,
             self.implant_transform.GetMatrix()
         )
 
-        if reference_offset is not None and reference_transform is not None:
-            base = list(reference_transform.GetPosition())
-            axis_vec = [reference_transform.GetMatrix().GetElement(i, self.axis) for i in range(3)]
-            world_crosshair_point = [base[i] + axis_vec[i] * reference_offset for i in range(3)]
-            center_reslice = transform_point_to_reslice_space(world_crosshair_point, new_reslice_matrix)
-        else:
-            center_reslice = transform_point_to_reslice_space(origin, new_reslice_matrix)
+        # Update crosshair lines in this view based on implant transform and slice offset
+        self.update_crosshair_lines(base_reslice_matrix)
 
-        v1, v2 = get_in_plane_vectors(self.implant_transform.GetMatrix(), new_reslice_matrix, self.axis)
+    def update_crosshair_lines(self, reslice_matrix):
+        # The two crosshair lines lie along implant axes perpendicular to this view axis
+        # We'll build them centered at the crosshair center in reslice space,
+        # which is the intersection point on the reslice plane
 
-        self.crosshair_lines[0].SetMapper(build_line_actor(center_reslice, v1).GetMapper())
-        self.crosshair_lines[1].SetMapper(build_line_actor(center_reslice, v2).GetMapper())
+        # Center in world coordinates = implant position translated along slice offset axis
+        implant_pos = self.implant_transform.GetPosition()
+        axis_vec = [reslice_matrix.GetElement(i, 2) for i in range(3)]
+        center_world = [implant_pos[i] + self.slice_offset * axis_vec[i] for i in range(3)]
+
+        # Transform center to reslice space
+        inverse = vtk.vtkMatrix4x4()
+        vtk.vtkMatrix4x4.Invert(reslice_matrix, inverse)
+        center_reslice = list(inverse.MultiplyDoublePoint(center_world + [1]))[:3]
+
+        # Direction vectors for the two lines in reslice space (axes perpendicular to the slice axis)
+        # We get them from implant_transform matrix columns corresponding to these axes, then transform to reslice space
+        def get_direction_vec(col):
+            v = [self.implant_transform.GetMatrix().GetElement(i, col) for i in range(3)] + [0.0]
+            v_reslice = list(inverse.MultiplyDoublePoint(v))[:3]
+            norm = vtk.vtkMath.Norm(v_reslice)
+            if norm > 0:
+                v_reslice = [c / norm for c in v_reslice]
+            return v_reslice
+
+        dir1 = get_direction_vec((self.axis + 1) % 3)
+        dir2 = get_direction_vec((self.axis + 2) % 3)
+        # actually, dir1 is always [1, 0, 0] and dir2 is [0, 1, 0] in reslice space
+        # print("dir1 (reslice):", dir1)
+        # print("dir2 (reslice):", dir2)
+
+        length = 100  # crosshair line half-length in reslice space
+
+        # Update each crosshair line actor with new geometry
+        for actor, direction in zip(self.crosshair_lines, [dir1, dir2]):
+            # define self crosshair default line endpoints for the two directions
+            p1 = [center_reslice[i] - length * direction[i] for i in range(3)]
+            p2 = [center_reslice[i] + length * direction[i] for i in range(3)]
+            line_source = vtk.vtkLineSource()
+            line_source.SetPoint1(p1)
+            line_source.SetPoint2(p2)
+            line_source.Update()
+            actor.SetMapper(vtk.vtkPolyDataMapper())
+            actor.GetMapper().SetInputConnection(line_source.GetOutputPort())
+    
+    
+    def update_crosshair_one_line(self, idx, center, direction):
+        """
+        Update one of this view's crosshair lines corresponding to implant axis 'axis',
+        given the center position in reslice space and direction vector.
+        This method is called by other views when they scroll slices.
+        """
+        # Update the crosshair line geometry based on the new center and direction
+        length = 100
+        p1 = [center[i] - length * direction[i] for i in range(3)]
+        p2 = [center[i] + length * direction[i] for i in range(3)]
+        line_source = vtk.vtkLineSource()
+        line_source.SetPoint1(p1)
+        line_source.SetPoint2(p2)
+        line_source.Update()
+        mapper = vtk.vtkPolyDataMapper()
+        mapper.SetInputConnection(line_source.GetOutputPort())
+        self.crosshair_lines[idx].SetMapper(mapper)
+
+    def update_crosshair_line_for_axis(self, active_axis, active_offset):
+        """
+        Update one of this view's crosshair lines corresponding to implant axis 'axis',
+        given the slice offset along that axis.
+        This method is called by other views when they scroll slices.
+        """
+        print('===================================================')
+        print("slice_offset:", active_offset)
+        # We only have two crosshair lines: along (self.axis+1)%3 and (self.axis+2)%3 axes
+        # If 'axis' is not one of those, this view doesn't show that axis line, so ignore
+        crosshair_axes = [(self.axis + 1) % 3, (self.axis + 2) % 3]
+        if active_axis not in crosshair_axes:
+            return  # nothing to update in this view
+
+        # Figure out along which crosshair line scroll happened:
+        idx = crosshair_axes.index(active_axis)
+        # And switch to the other line to update
+        idx = (idx + 1) % 2  # switch to the other line
+
+        # Build reslice matrix WITHOUT slice offset on this view (keep own slice offset)
+        base_reslice_matrix = create_reslice_matrix_from_transform(self.implant_transform, self.axis)
+
+        # Calculate world coordinate of crosshair line center using slice_offset along 'axis'
+        implant_pos = self.implant_transform.GetPosition()
+        # Axis vector of implant axis 'axis' in world coords (column of implant matrix)
+        axis_vec = [self.implant_transform.GetMatrix().GetElement(i, active_axis) for i in range(3)]
+
+        # Center position in world coords is implant position + slice_offset * axis_vec
+        center_world = [implant_pos[i] + active_offset * axis_vec[i] for i in range(3)]
+
+        # Transform center to reslice space of this view
+        inverse = vtk.vtkMatrix4x4()
+        vtk.vtkMatrix4x4.Invert(base_reslice_matrix, inverse)
+        center_reslice = list(inverse.MultiplyDoublePoint(center_world + [1]))[:3]
+        print("center_reslice:", center_reslice)
+        
+        update_dir = [1.0, 0.0, 0.0]
+        if idx == 1:
+            update_dir = [0.0, 1.0, 0.0]
+        self.update_crosshair_one_line(idx, center_reslice, update_dir)
 
 
 class ViewManager:
@@ -198,78 +271,55 @@ class ViewManager:
         self.interactor = vtk.vtkRenderWindowInteractor()
         self.interactor.SetRenderWindow(self.render_window)
 
+        # Slice offsets for each implant axis
+        self.slice_offsets = [0.0, 0.0, 0.0]
+
+        # Three views, each reslicing along one implant axis
         self.views = [
-            View(image_data, self.implant_transform, 0, (0.0, 0.0, 0.33, 1.0), self.render_window),
-            View(image_data, self.implant_transform, 1, (0.33, 0.0, 0.66, 1.0), self.render_window),
-            View(image_data, self.implant_transform, 2, (0.66, 0.0, 1.0, 1.0), self.render_window),
+            View(image_data, self.implant_transform, axis=0, viewport=(0, 0, 1 / 3, 1), render_window=self.render_window),
+            View(image_data, self.implant_transform, axis=1, viewport=(1 / 3, 0, 2 / 3, 1), render_window=self.render_window),
+            View(image_data, self.implant_transform, axis=2, viewport=(2 / 3, 0, 1, 1), render_window=self.render_window)
         ]
 
-        self.slice_offsets = [0.0, 0.0, 0.0]  # Per-view slice offset
+        self.active_axis = 2  # along cylinder axis is y
 
-        self.current_view_index = 2  # Default active view (e.g. Z-axis scroll)
+        self.interactor.AddObserver("KeyPressEvent", self.on_key_press)
 
-        self.interactor.AddObserver("KeyPressEvent", self.keypress_callback)
-
-        # Show which view is active on start
-        print(f"Active view axis: {self.current_view_index} (use keys 1, 2, 3 to switch)")
-
-    def keypress_callback(self, obj, event):
-        key = obj.GetKeySym()
-        if key in ['1', '2', '3']:
-            # Switch active view
-            self.current_view_index = int(key) - 1
-            print(f"Switched to view {key} (axis {self.current_view_index})")
-        elif key in ['plus', 'equal']:
-            # Increase slice offset for active view
-            self.slice_offsets[self.current_view_index] += 1.0
-            print(f"View {self.current_view_index} slice offset increased to {self.slice_offsets[self.current_view_index]}")
-        elif key in ['minus', 'underscore']:
-            # Decrease slice offset for active view
-            self.slice_offsets[self.current_view_index] -= 1.0
-            print(f"View {self.current_view_index} slice offset decreased to {self.slice_offsets[self.current_view_index]}")
-        else:
-            return  # Ignore other keys
-
-        self.update_views()
-
-    def update_views(self):
-        # Update all views:
-        # The active view scrolls along implant axis with its slice offset.
-        # Other two views show crosshairs at the active view's slice position.
-        active_offset = self.slice_offsets[self.current_view_index]
-        active_view = self.views[self.current_view_index]
-        active_axis = self.current_view_index
-        active_transform = self.implant_transform
-
-        for i, view in enumerate(self.views):
-            if i == self.current_view_index:
-                # This view scrolls normally along its implant axis with its slice offset
-                view.update_reslice(slice_offset=self.slice_offsets[i])
-            else:
-                # These views display crosshairs at the active view's slice offset along implant
-                # Pass active view slice offset and implant transform to synchronize crosshairs
-                view.update_reslice(slice_offset=self.slice_offsets[i],
-                                    reference_offset=active_offset,
-                                    reference_transform=active_transform)
-
+    def render(self):
         self.render_window.Render()
-
-    def start(self):
-        self.update_views()
         self.interactor.Initialize()
-        self.render_window.Render()
         self.interactor.Start()
 
+    def on_key_press(self, obj, event):
+        key = self.interactor.GetKeySym()
+        print(f"Key pressed: {key}")
+        if key in ["1", "2", "3"]:
+            self.active_axis = int(key) - 1
+            print(f"Active axis changed to: {self.active_axis}")
+        elif key == "equal" or key == "plus":
+            self.slice_offsets[self.active_axis] += 1
+            print(f"Slice offset[{self.active_axis}] = {self.slice_offsets[self.active_axis]}")
+            self.update_views()
+        elif key == "minus":
+            self.slice_offsets[self.active_axis] -= 1
+            print(f"Slice offset[{self.active_axis}] = {self.slice_offsets[self.active_axis]}")
+            self.update_views()
 
-def main():
-    # Replace with your MHD file path
-    mhd_file_path = "data/L1.mhd"
-    image_data = load_mhd_file(mhd_file_path)
+    def update_views(self):
+        # Update main view along active_axis
+        self.views[self.active_axis].slice_offset = self.slice_offsets[self.active_axis]
+        self.views[self.active_axis].update_reslice()
 
-    manager = ViewManager(image_data)
-    manager.start()
+        # Update crosshair lines in other views
+        for i in range(3):
+            if i == self.active_axis:
+                continue
+            self.views[i].update_crosshair_line_for_axis(self.active_axis, self.slice_offsets[self.active_axis])
+
+        self.render_window.Render()
 
 
-if __name__ == "__main__":
-    main()
-
+if __name__ == '__main__':
+    image = load_mhd_file("data/L1.mhd")
+    manager = ViewManager(image)
+    manager.render()
