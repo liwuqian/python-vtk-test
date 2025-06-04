@@ -111,6 +111,9 @@ class View:
             base_reslice_matrix,
             self.implant_transform.GetMatrix()
         )
+        # set camera clipping range
+        # distance = self.renderer.GetActiveCamera().GetDistance()
+        # self.renderer.GetActiveCamera().SetClippingRange(distance - 0.5, distance + 0.5)
 
     def update_crosshair_one_line(self, idx, center, direction):
         length = 100
@@ -204,9 +207,11 @@ class ViewManager:
             print(f"Active axis changed to: {self.active_axis}")
         elif key == "equal" or key == "plus":
             self.slice_offsets[self.active_axis] += 1
+            self.views[self.active_axis].slice_offset = self.slice_offsets[self.active_axis]
             print(f"Slice offset[{self.active_axis}] = {self.slice_offsets[self.active_axis]}")
         elif key == "minus":
             self.slice_offsets[self.active_axis] -= 1
+            self.views[self.active_axis].slice_offset = self.slice_offsets[self.active_axis]
             print(f"Slice offset[{self.active_axis}] = {self.slice_offsets[self.active_axis]}")
         # Update all views after any change
         for view in self.views:
